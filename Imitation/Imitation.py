@@ -15,11 +15,36 @@ import matplotlib.pyplot as plt
 import numpy as np
 from keras.utils.vis_utils import plot_model
 
+# set default images dimensions
+img_width = 240
+img_height = 80
+dim = (img_width, img_height)
+
+# resize all training images to be the same size
+ian1 = cv2.imread('IanPangram1.png', cv2.IMREAD_GRAYSCALE)
+ian1_resize = cv2.resize(ian1, dim, interpolation=cv2.INTER_AREA)
+
+ian2 = cv2.imread('IanPangram2.png', cv2.IMREAD_GRAYSCALE)
+ian2_resize = cv2.resize(ian2, dim, interpolation=cv2.INTER_AREA)
+
+ian3 = cv2.imread('IanPangram3.png', cv2.IMREAD_GRAYSCALE)
+ian3_resize = cv2.resize(ian3, dim, interpolation=cv2.INTER_AREA)
+
+ian4 = cv2.imread('IanPangram4.png', cv2.IMREAD_GRAYSCALE)
+ian4_resize = cv2.resize(ian4, dim, interpolation=cv2.INTER_AREA)
+
+ian_array = [ian1_resize, ian2_resize, ian3_resize, ian4_resize]
+
+ian_images = []
+for k in range(4):
+    ian_images.append(ian_array[k])
+ian_images = np.expand_dims(ian_images, axis=3)
+ian_images = np.asarray(ian_images)
 
 class GAN():
     def __init__(self):
-        self.img_rows = 77 # 10% of original image size
-        self.img_cols = 237 # 10% of original image size
+        self.img_rows = img_height # 10% of original image size
+        self.img_cols = img_width # 10% of original image size
         self.channels = 1
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
         self.latent_dim = 100
@@ -55,7 +80,7 @@ class GAN():
 
         model = Sequential()
 
-        model.add(Dense(64, input_dim=self.latent_dim)) #input size of 100, 256 outputs
+        model.add(Dense(64, input_dim=self.latent_dim))
         model.add(LeakyReLU(alpha=0.2))
         model.add(BatchNormalization(momentum=0.8))
         model.add(Dense(128))
@@ -71,7 +96,7 @@ class GAN():
 
         noise = Input(shape=(self.latent_dim,))
         img = model(noise)
-        # model.save('gen_model5.h5')
+        model.save('gen_model6.h5')
         # plot_model(model,to_file="generator_model.png", show_shapes=True, show_layer_names=True)
 
         return Model(noise, img)
@@ -90,27 +115,29 @@ class GAN():
 
         img = Input(shape=self.img_shape)
         validity = model(img)
-        # model.save('discrim_model5.h5')
+        model.save('discrim_model6.h5')
         # plot_model(model, to_file="discriminator_model.png", show_shapes=True, show_layer_names=True)
 
         return Model(img, validity)
 
     def train(self, epochs, batch_size, sample_interval):
 
-        # Scale training image down to 10% of original size
-        img = cv2.imread('IanPangram4.png', cv2.IMREAD_GRAYSCALE)
-        scale_percent = 10  # percent of original size
-        width = int(img.shape[1] * scale_percent / 100)
-        height = int(img.shape[0] * scale_percent / 100)
-        dim = (width, height)
-        
+        # # Scale training image down to 10% of original size
+        # img = cv2.imread('IanPangram4.png', cv2.IMREAD_GRAYSCALE)
+        # scale_percent = 10  # percent of original size
+        # width = int(img.shape[1] * scale_percent / 100)
+        # height = int(img.shape[0] * scale_percent / 100)
+        # dim = (width, height)
+
         # resize image
-        X_train = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-        X_train = np.expand_dims(X_train, axis=0)
-        
+        X_train = ian_images
+        # X_train = np.expand_dims(X_train, axis=0)
+        # print(X_train.shape, "\n")
+
         # Rescale -1 to 1
         X_train = X_train / 127.5 - 1.
-        X_train = np.expand_dims(X_train, axis=3)
+        # X_train = np.expand_dims(X_train, axis=3)
+        # print(X_train.shape, "\n")
 
         # Adversarial ground truths
         valid = np.ones((batch_size, 1))
@@ -153,7 +180,7 @@ class GAN():
                 self.sample_images(epoch)
 
     def sample_images(self, epoch):
-        r, c = 2,2
+        r, c = 4,4
         noise = np.random.normal(0, 1, (r * c, self.latent_dim))
         gen_imgs = self.generator.predict(noise)
 
@@ -167,10 +194,10 @@ class GAN():
                 axs[i,j].imshow(gen_imgs[cnt, :,:,0], cmap='gray')
                 axs[i,j].axis('off')
                 cnt += 1
-        fig.savefig("/Users/Ian/PycharmProjects/Handwriting/FourthTest/images%d.png" % epoch)
+        fig.savefig("/Users/Ian/PycharmProjects/Handwriting/Combined-Test/images%d.png" % epoch)
         plt.close()
 
 
 if __name__ == '__main__':
     gan = GAN()
-    gan.train(epochs=25000, batch_size=30, sample_interval=100)
+    gan.train(epochs=30000, batch_size=40, sample_interval=100)
