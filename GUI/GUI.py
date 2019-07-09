@@ -3,6 +3,9 @@ from tkinter import filedialog
 #from tkinter.ttk import *
 from tkinter import messagebox
 from PIL import ImageTk, Image
+from keras.models import load_model
+import numpy as np
+import math
 #from tkinter import messagebox
 
 window = Tk()
@@ -10,6 +13,42 @@ window.title("Handwriting Imitation and Recognition")
 window.geometry('650x450')
 
 profileNames = []
+img_width = 28 # width of new image
+img_height = 28 # heigth of new image
+dim = (img_width, img_height)
+
+def convert_values(gen_img): # converts values from -1 to 1 to 0 to 255 (grayscale)
+    return (((gen_img - np.amin(gen_img)) * (255 - 0)) / (np.amax(gen_img) - np.amin(gen_img)))
+
+def generate_image(letter):
+    generator = load_model('C:/Users/Ian/PycharmProjects/Handwriting/Saved-Generator-Models/gen_model_%s.h5' % letter)
+    noise = np.random.normal(0, 1, (1, 100))
+    gen_img = generator.predict(noise) # generate image using noise vector
+    del generator
+    gen_img = convert_values(gen_img)
+    gen_img = Image.fromarray(gen_img[0, :, :, 0]) # only second and third axis are the pixel values
+    return gen_img.resize(dim, Image.ANTIALIAS)  # resize to 28x28 image
+
+def generate_sentence(text):
+    if len(text) >= 18:
+        new_im = Image.new('RGB', (18 * img_width, math.ceil(len(text) / 18) * img_height))
+    else:
+        new_im = Image.new('RGB', ((len(text)-1) * img_width, math.ceil(len(text) / 18) * img_height))
+    x_offset = 0
+    y_offset = 0
+    for k in range(len(text)-1):
+        if text[k] == " ":
+            x_offset += img_width
+        else:
+            gen_img = generate_image(text[k])
+            new_im.paste(gen_img, (x_offset, y_offset))
+            del gen_img
+            x_offset += img_width
+        if ((k % 17) == 0) and (k != 0):
+            x_offset = 0
+            y_offset += img_height
+    return new_im, new_im.size
+
 def recognition_button(): # when the "Recognition" button is pressed
     homeButton.place_configure(x=575, y=400)
     recognitionButton.place_forget()
@@ -29,20 +68,14 @@ def getFile(): # open file directory to select image to recognize handwriting in
     filename = filedialog.askopenfilename(initialdir='C:/Users/ianfe/PycharmProjects/Handwriting/', title="Select a file",
                                           filetype=(("png", "*.png",), ("All files", ""))) # open file directory
 
-    # must pre-load images to display before program runs due to issues with creating a PhotoImage based on the string
-    # "filename[43:]"
-    if   filename[43:] == "IanPangram1.png":
-        recognitionImage = ianPangram1
-    elif filename[43:] == "IanPangram2.png":
-        recognitionImage = ianPangram2
-    elif filename[43:] == "IanPangram3.png":
-        recognitionImage = ianPangram3
-    elif filename[43:] == "IanPangram4.png":
-        recognitionImage = ianPangram4
-    recognitionImageCanvas.place_configure(x=85, y=50)
-    recognitionImageCanvas.create_image(255, 150, image=recognitionImage) # place selected image on recognitionImageCanvas
-    recognizeButton.place_configure(x=260, y=400)
-    fileButton.place_forget()
+    if filename.endswith(".png"):
+        img = Image.open(filename)
+        img = img.resize((504, 308), Image.ANTIALIAS)  # resize to 28x28 image
+        window.recognitionImage = recognitionImage = ImageTk.PhotoImage(image=img, size=img.size)
+        recognitionImageCanvas.place_configure(x=85, y=50)
+        recognitionImageCanvas.create_image(255, 150, image=recognitionImage) # place selected image on recognitionImageCanvas
+        recognizeButton.place_configure(x=260, y=400)
+        fileButton.place_forget()
 
 def createNewProfile(): # creates an entry box to enter a new profile name
     createProfileButton.place_forget()
@@ -99,13 +132,16 @@ def ian_button(): # when "Ian" button is pressed on the profiles screen
     makeProfileButton.place_forget()
 
 def create_picture_button(): # create image of the sentence typed
-    if imitationTextEntry.get("1.0", END) != "\n": # check if any text was entered
+    text = imitationTextEntry.get("1.0", END)
+    if text != "\n": # check if any text was entered
+        new_im, img_size = generate_sentence(text)
+        window.new_im_tk = new_im_tk = ImageTk.PhotoImage(image=new_im, size=img_size)
         imitationTextEntry.place_forget()
         createPictureButton.place_forget()
         tryAgainSameProfile.place_configure(x=50, y=385)
         tryAgainDifferentProfile.place_configure(x=150, y=385)
-        insertImageCanvas.place_configure(x=200, y=200)
-        insertImageCanvas.create_image(150, 20, image=insertImage) # placeholder image. will be removed in the future
+        insertImageCanvas.place_configure(x=85, y=50)
+        insertImageCanvas.create_image(255, 150, image=new_im_tk)
         imitationTextEntry.delete("1.0", END)
     else: # display error message if no text was entered
         messagebox.showerror("Error", "No text detected. Please try again.")
@@ -129,7 +165,7 @@ def different_profile_button(): # go back to profiles screen
 
 def recognize_button(): # submit photo for handwriting to be recognized in
     textHereImageCanvas.place_configure(x=180, y=200)
-    textHereImageCanvas.create_image(175, 20, image=textHereImage) # placeholder image. will be removed in the future
+    # textHereImageCanvas.create_image(175, 20, image=textHereImage) # placeholder image. will be removed in the future
     recognizeButton.place_forget()
     tryAgainRecognize.place_configure(x=300, y=400)
     recognitionImageCanvas.place_forget()
@@ -142,20 +178,6 @@ def try_again_recognize(): # repeat recognition
 def resize_image(picture): # resize image to fit recognitionImageCanvas
     img = Image.open(picture)
     return img.resize((500, 300), Image.ANTIALIAS)
-
-insertImage = ImageTk.PhotoImage(Image.open("InsertImageHere.png")) # placeholder image. will be removed in the future
-textHereImage = ImageTk.PhotoImage(Image.open("TextGoesHere.png")) # placeholder image. will be removed in the future
-
-# Resize all the images to fit recognitionImageCanvas
-ianPangram1 = resize_image("IanPangram1.png")
-ianPangram2 = resize_image("IanPangram2.png")
-ianPangram3 = resize_image("IanPangram3.png")
-ianPangram4 = resize_image("IanPangram4.png")
-
-ianPangram1 = ImageTk.PhotoImage(ianPangram1)
-ianPangram2 = ImageTk.PhotoImage(ianPangram2)
-ianPangram3 = ImageTk.PhotoImage(ianPangram3)
-ianPangram4 = ImageTk.PhotoImage(ianPangram4)
 
 # all buttons
 recognitionButton = Button(window, width=50, height=10, text="Recognition", relief="raised", command=recognition_button)
@@ -181,9 +203,9 @@ profilesLabel = Label(window, text="Profiles", width=93, bd=1, relief=SUNKEN)
 profileNameLabel = Label(window, text="Profile Name:")
 
 # all canvases
-insertImageCanvas = Canvas(window, height=78, width=319)
+insertImageCanvas = Canvas(window, height=308, width=504)
 textHereImageCanvas = Canvas(window, height=59, width=362)
-recognitionImageCanvas = Canvas(window, height=300, width=500)
+recognitionImageCanvas = Canvas(window, height=308, width=504)
 
 # place "recognition" and "imitation" button on startup
 recognitionButton.place_configure(x=150, y=50)
